@@ -93,7 +93,7 @@ ADS6401支持SPOT和FLOOD两大模组类型（更多细分类型），在ads6401
 2. 生成的内核镜像和驱动模块（若配置为模块）部署到RK3568开发板，重启生效。
 Rockchip的SDK对内核进行了一些类似Android化的定制修改，可支持adb, kernel的烧录镜像文件使用boot.img, SDK里编译脚本build.sh提高lunch菜单来选择不同开发板类型，也提供自动将传统内核镜像文件Image转换为boot.img的自动化操作。客户应根据实际使用的平台，自己进行相应的处理。 
  
-详见[编译Rockchip的Linux kernel镜像并生成boot.img](Build_boot_image_for_rockchip_Linux)
+详见[编译Rockchip的Linux kernel镜像并生成boot.img](Build_boot_image_for_rockchip_Linux.md)
 
 
 ##### 4.3. 验证
