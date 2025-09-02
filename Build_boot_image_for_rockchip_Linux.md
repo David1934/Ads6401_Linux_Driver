@@ -11,7 +11,24 @@
 ### 下载地址：
 [Ads6401_Linux_Driver](https://github.com/David1934/Ads6401_Linux_Driver)
 除了小工具包，该git仓库还包括ads6401 驱动发布包.zip文件
-
+```
+./ads6401_linux_driver_code_v3.2.14_20250830191844.zip
+./Build_boot_image_for_rockchip_Linux.md
+./LICENSE
+./Linux_Driver_porting_guide_4_ads6401.md
+./README.md
+./README_zh_CN.md
+./tools/buildtools/build.sh
+./tools/buildtools/device/rockchip/common/build.sh
+./tools/buildtools/device/rockchip/common/mk-fitimage.sh
+./tools/buildtools/device/rockchip/rk3568/boot.its
+./tools/buildtools/device/rockchip/rk3568/parameter-buildroot-fit.txt
+./tools/buildtools/prebuilts.tar.gz
+./tools/buildtools/rk3568_linux_510_110_ads6401_for_mini_demo_box.patch
+./tools/buildtools/rkbin/tools/mkimage
+./tools/DriverAssitant_v5.12.zip
+./tools/RkDevTool_2.96.zip
+```
     
 ### 该工具包的主要功能：
 
@@ -30,15 +47,15 @@ cd ~
 git clone https://github.com/David1934/Ads6401_Linux_Driver
 ```
 
-3. 解压编译工具包
+3. 解压编译工具包中的交叉编译工具链
 ```
-cd Ads6401_Linux_Driver/tools
-tar zxvf buildtools_4_rk3568_boot_img.tar.gz
+cd Ads6401_Linux_Driver/tools/buildtools
+tar zxvf prebuilts.tar.gz
 ```
 
 4. 下载Rockchip的Linux kernel源码
 ```
-cd buildtools_4_rk3568_boot_img
+cd Ads6401_Linux_Driver/tools/buildtools
 ./build.sh clone_kernel
 # 将在当前目录下创建kernel目录，存储Rockchip Linux kernel的源码
 ```
