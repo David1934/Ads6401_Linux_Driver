@@ -5,7 +5,7 @@
 
 1. Rockchip Linux系统对原生Linux系统进行很多的完善优化，比如添加了类似Android构建系统的Lunch菜单，这样可以轻松添加不同的board类型，以便支持不同的开发板和项目，事实上我们目前也正在利用这个特征来支持我司的多个项目。另外，固件的Flash/eMMC镜像分区（采用GPT分区）也采用了类似Android的做法，包括uboot.img, boot.img, rootfs.img, misc.img 和recovery.img等分区文件。其中boot.img是Linux kernel的镜像，但是它不仅仅包含Linux kernel编译出来的Image文件，还包括设备树镜像.dtb文件，以及一些资源文件resource.img。而网络上的Linux编译介绍文章（典型的Linux kernel编译步骤），只会编译输出Linux kernel的镜像文件Image, 并不会生成boot.img文件。
 
-2. Rockchip的Linux SDK，需要找Rockchip原厂申请权限，需要使用repo下载和更新代码，整个SDK包也非常的大，而对于我们dToF sensor应用项目来说，尤其是swift项目，我们的客户并不需要更新rootfs等镜像，而只需要更新kernel相关的boot.img, 外加少量的Linux 应用文件（这些不需要原厂的SDK支持），所以，我根据网上已有的资源，整理出了一个编译脚本，生成了一个小工具包。
+2. Rockchip的Linux SDK，需要找Rockchip原厂申请权限，需要使用repo下载和更新代码，整个SDK包也非常的大，而对于我们dToF sensor应用项目来说，尤其是Ads6401应用项目，我们的客户并不需要更新rootfs等镜像，而只需要更新kernel相关的boot.img, 外加少量的Linux 应用文件（这些不需要原厂的SDK支持），所以，我根据网上已有的资源，整理出了一个编译脚本，生成了一个小工具包。
 
 
 ### 下载地址：
@@ -23,7 +23,10 @@
 ./tools/buildtools/device/rockchip/common/mk-fitimage.sh
 ./tools/buildtools/device/rockchip/rk3568/boot.its
 ./tools/buildtools/device/rockchip/rk3568/parameter-buildroot-fit.txt
-./tools/buildtools/prebuilts.tar.gz
+./tools/buildtools/prebuilts.zip
+./tools/buildtools/prebuilts.z01
+./tools/buildtools/prebuilts.z02
+./tools/buildtools/prebuilts.z03
 ./tools/buildtools/rk3568_linux_510_110_ads6401_for_mini_demo_box.patch
 ./tools/buildtools/rkbin/tools/mkimage
 ./tools/DriverAssitant_v5.12.zip
@@ -50,7 +53,7 @@ git clone https://github.com/David1934/Ads6401_Linux_Driver
 3. 解压编译工具包中的交叉编译工具链
 ```
 cd Ads6401_Linux_Driver/tools/buildtools
-tar zxvf prebuilts.tar.gz
+unzip prebuilts.zip
 ```
 
 4. 下载Rockchip的Linux kernel源码
@@ -82,4 +85,4 @@ cd Ads6401_Linux_Driver/tools/buildtools
    d. 选择正确的boot.img路径，然后按“执行”按钮开始烧录
    ![RkDevTools](vx_images/559817897513996.png)
 
-8. 验证驱动是否正常工作
+

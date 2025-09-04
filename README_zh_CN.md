@@ -1,6 +1,9 @@
 ## **灵明光子 ADS6401 dToF 传感器Linux 驱动移植指南**
 ## Linux_Driver_porting_guide_for_ads6401
 
+### 特别提醒
+   1. 驱动程序跟硬件电路紧密相关，我们的驱动发布包仅供参考，客户应在充分理解驱动源码后，根据自己实际的硬件环境进行适当的修改（包括一些编译开关的配置）
+
 #### 1. 从github下载最新的驱动发布包 和 编译工具包
 
 [Ads6401_Linux_Driver](https://github.com/David1934/Ads6401_Linux_Driver)
@@ -8,11 +11,13 @@
 #### 2. 参考设计的硬件软件环境
 - **目标平台**：Rockchip RK3568 SoC
 - **内核版本**：Linux 5.10.110
-- **SDK包**：基于RK3568的Linux 5.10 SDK，其中`<rockchip_original>`目录Rk3568 Linux 5.10 SDK上原始的源文件，而`<adaps_modified>`是我们有修改和新增的文件
+- **SDK包**：基于RK3568的Linux 5.10 SDK
 
 
 #### 3. 修改和新增的文件列表
+
 ![修改和新增的文件](vx_images/557763628949679.png)
+其中`<rockchip_original>`目录Rk3568 Linux 5.10 SDK上原始的源文件，而`<adaps_modified>`是我们有修改和新增的文件
    ```
 kernel/arch/arm64/boot/dts/rockchip/rk3568-evb1-ddr4-v10-linux.dts
 kernel/arch/arm64/configs/rockchip_linux_defconfig
@@ -84,19 +89,19 @@ ADS6401支持SPOT和FLOOD两大模组类型（更多细分类型），在ads6401
 
 
 ##### 4.2 编译与部署
-1. 执行内核编译：
+1. 典型的内核编译步骤：
    ```bash
    make ARCH=arm64 rockchip_linux_defconfig
    make ARCH=arm64 -j8
    ```
 
-2. 生成的内核镜像和驱动模块（若配置为模块）部署到RK3568开发板，重启生效。
-Rockchip的SDK对内核进行了一些类似Android化的定制修改，可支持adb, kernel的烧录镜像文件使用boot.img, SDK里编译脚本build.sh提高lunch菜单来选择不同开发板类型，也提供自动将传统内核镜像文件Image转换为boot.img的自动化操作。客户应根据实际使用的平台，自己进行相应的处理。 
+2. Rockchip公司对内核进行了一些类似Android化的定制修改，可支持adb, kernel的烧录镜像文件使用boot.img, 具体的步骤参加下列文章。客户应根据实际使用的平台，进行相应的处理。 
  
 详见[编译Rockchip的Linux kernel镜像并生成boot.img](Build_boot_image_for_rockchip_Linux.md)
 
 
 ##### 4.3. 验证
+  生成的内核镜像和驱动模块（若配置为模块）部署到RK3568开发板，重启生效。
 - 检查驱动加载：`lsmod | grep ads6401` 或 `dmesg | grep DRV_ADS6401`
 - 确认设备节点：`ls /dev/ads6401_misc`（ADS6401驱动中misc驱动的设备节点）
 - 确认我们独有的设备属性是否存在：

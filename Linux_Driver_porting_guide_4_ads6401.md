@@ -3,14 +3,15 @@
 ## A. ads6401驱动porting guide
 
 
-#### 1. 环境准备
+#### 1. 参考设计的硬件软件环境
 - **目标平台**：Rockchip RK3568 SoC
-- **内核版本**：Linux 5.10.110（已验证兼容版本）
-- **SDK包**：基于RK3568的Linux 5.10 SDK，其中`<rockchip_original>`目录Rk3568 Linux 5.10 SDK上原始的源文件，而`<adaps_modified>`是我们有修改和新增的文件
+- **内核版本**：Linux 5.10.110
+- **SDK包**：基于RK3568的Linux 5.10 SDK
 
 
 #### 2. 修改和新增的文件对比
 ![Added_and_modified_file_list](vx_images/453721887238496.png)
+其中`<rockchip_original>`目录Rk3568 Linux 5.10 SDK上原始的源文件，而`<adaps_modified>`是我们有修改和新增的文件
    ```
 kernel/arch/arm64/boot/dts/rockchip/rk3568-evb1-ddr4-v10-linux.dts
 kernel/arch/arm64/configs/rockchip_linux_defconfig
