@@ -1,8 +1,40 @@
+diff --git a/arch/arm64/boot/dts/rockchip/rk3568-evb.dtsi b/arch/arm64/boot/dts/rockchip/rk3568-evb.dtsi
+index e9890a49448a..ea35fa1a706e 100644
+--- a/arch/arm64/boot/dts/rockchip/rk3568-evb.dtsi
++++ b/arch/arm64/boot/dts/rockchip/rk3568-evb.dtsi
+@@ -204,7 +204,7 @@ rk809_sound: rk809-sound {
+ 		pinctrl-0 = <&hp_det>;
+ 	};
+ 
+-	spdif-sound {
++	spdif_sound: spdif-sound {
+ 		status = "okay";
+ 		compatible = "simple-audio-card";
+ 		simple-audio-card,name = "ROCKCHIP,SPDIF";
+@@ -1538,9 +1538,9 @@ &pmu_io_domains {
+ 	pmuio2-supply = <&vcc3v3_pmu>;
+ 	vccio1-supply = <&vccio_acodec>;
+ 	vccio3-supply = <&vccio_sd>;
+-	vccio4-supply = <&vcc_3v3>;
++	vccio4-supply = <&vcc_1v8>;
+ 	vccio5-supply = <&vcc_3v3>;
+-	vccio6-supply = <&vcc_3v3>;
++	vccio6-supply = <&vcc_1v8>;
+ 	vccio7-supply = <&vcc_3v3>;
+ };
+ 
 diff --git a/arch/arm64/boot/dts/rockchip/rk3568-evb1-ddr4-v10-linux.dts b/arch/arm64/boot/dts/rockchip/rk3568-evb1-ddr4-v10-linux.dts
-index b6b618bb561a..9f676026ecb5 100644
+old mode 100644
+new mode 100755
+index b6b618bb561a..f0ca8029fe24
 --- a/arch/arm64/boot/dts/rockchip/rk3568-evb1-ddr4-v10-linux.dts
 +++ b/arch/arm64/boot/dts/rockchip/rk3568-evb1-ddr4-v10-linux.dts
-@@ -7,6 +7,7 @@
+@@ -4,9 +4,12 @@
+  *
+  */
+ 
++// based on rk3568-evb1-ddr4-v10-linux.dts
++
  #include "rk3568-evb1-ddr4-v10.dtsi"
  #include "rk3568-linux.dtsi"
  #include <dt-bindings/display/rockchip_vop.h>
@@ -10,7 +42,7 @@ index b6b618bb561a..9f676026ecb5 100644
  
  &vp0 {
  	cursor-win-id = <ROCKCHIP_VOP2_CLUSTER0>;
-@@ -15,3 +16,552 @@ &vp0 {
+@@ -15,3 +18,569 @@ &vp0 {
  &vp1 {
  	cursor-win-id = <ROCKCHIP_VOP2_CLUSTER1>;
  };
@@ -331,6 +363,23 @@ index b6b618bb561a..9f676026ecb5 100644
 +		};
 +	};
 +
++	vdd_cpu0: rk8602@42 {
++		compatible = "rockchip,rk8602";
++		reg = <0x42>;
++		vin-supply = <&vcc5v0_sys>;
++		regulator-compatible = "rk860x-reg";
++		regulator-name = "vdd_cpu";
++		regulator-min-microvolt = <712500>;
++		regulator-max-microvolt = <1390000>;
++		regulator-init-microvolt = <900000>;
++		regulator-ramp-delay = <2300>;
++		rockchip,suspend-voltage-selector = <1>;
++		regulator-boot-on;
++		regulator-always-on;
++		regulator-state-mem {
++			regulator-off-in-suspend;
++		};
++	};
 +};
 +
 +&i2c3 {
@@ -564,7 +613,9 @@ index b6b618bb561a..9f676026ecb5 100644
 +	};
 +};
 diff --git a/arch/arm64/configs/rockchip_linux_defconfig b/arch/arm64/configs/rockchip_linux_defconfig
-index 2c8e31b4a2ba..44bf8c3fa826 100644
+old mode 100644
+new mode 100755
+index 2c8e31b4a2ba..44bf8c3fa826
 --- a/arch/arm64/configs/rockchip_linux_defconfig
 +++ b/arch/arm64/configs/rockchip_linux_defconfig
 @@ -89,16 +89,16 @@ CONFIG_SYN_COOKIES=y
@@ -844,10 +895,10 @@ index 112ff12aa443..7b70613df07e 100644
  obj-$(CONFIG_VIDEO_OV7640) += ov7640.o
 diff --git a/drivers/media/i2c/ads6401.c b/drivers/media/i2c/ads6401.c
 new file mode 100755
-index 000000000000..ed905f6ba797
+index 000000000000..8a65ee8eb3da
 --- /dev/null
 +++ b/drivers/media/i2c/ads6401.c
-@@ -0,0 +1,7021 @@
+@@ -0,0 +1,6910 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * Copyright (C) 2023- Adaps Photonics Inc.
@@ -882,23 +933,26 @@ index 000000000000..ed905f6ba797
 +
 +#define VERSION_MAJOR                   3
 +#define VERSION_MINOR                   2
-+#define VERSION_REVISION                14
-+#define LAST_MODIFIED_TIME              "20250901A"
++#define VERSION_REVISION                15
++#define LAST_MODIFIED_TIME              "20250904A"
 +
 +
 +#define DEFAULT_DBG_CTRL                0 //(ADAPS_DBG_DUMP_REGS | ADAPS_DBG_TRACE_REGS_WRITE)
 +
-+#define SWIFT_MODULE_TYPE               ADS6401_MODULE_SPOT  // ADS6401_MODULE_FLOOD
++#define SWIFT_MODULE_TYPE               ADS6401_MODULE_BIG_FOV_FLOOD  // (ADS6401_MODULE_SPOT / ADS6401_MODULE_FLOOD / ADS6401_MODULE_BIG_FOV_FLOOD)
 +
 +#if defined(CONFIG_SWIFT_MINI_DEMO_BOX)
 +    #define MINI_DEMO_BOX
 +#endif
 +
 +#if (ADS6401_MODULE_FLOOD != SWIFT_MODULE_TYPE)
-+    #define ADS6401_MODULE_TYPE_NAME                        "Spot"
++    #if (ADS6401_MODULE_BIG_FOV_FLOOD == SWIFT_MODULE_TYPE)
++        #define ADS6401_MODULE_TYPE_NAME                        "Big_FoV_Flood"
++    #else
++        #define ADS6401_MODULE_TYPE_NAME                        "Classic_Spot"
++    #endif
 +
 +    #define VCSEL_LASER_PERIOD                              96  // 127          // <=127, laser repetition frequency period, unit is ns
-+    #define ENABLE_BIG_FOV_MODULE
 +
 +    // for rk3568 + new adapter board: 2 PWM output from rk3568 for pvdd and vop voltage adjustment.
 +    #define ENABLE_SOC_PWM_4_PVDD_VOLTAGE
@@ -926,10 +980,9 @@ index 000000000000..ed905f6ba797
 +
 +#else
 +    //#error "ADS6401_MODULE_FLOOD is selected!"
-+    #define ADS6401_MODULE_TYPE_NAME                        "Flood"
++    #define ADS6401_MODULE_TYPE_NAME                        "Small_Flood"
 +
-+    //#define VOP_ADJUST_BY_BUILT_IN_MCU
-+    #define ENABLE_SOC_PWM_4_VOP_VOLTAGE
++    #define ENABLE_SOC_PWM_4_VOP_VOLTAGE                    // VOP_ADJUST_BY_BUILT_IN_MCU
 +    #define TTY_DRIVERNAME_4_UART                           "ttyFIQ"
 +    #define CALIB_DATA_READY_IN_EEPROM_CHIP
 +    #define ENABLE_VCSEL_4_PCM_MODE_CFG                     true // enable vcsel for pcm mode of flood module
@@ -1282,7 +1335,7 @@ index 000000000000..ed905f6ba797
 +    ADAPS_DBG_TRACE_ROI_SWITCH          = BIT(19),
 +
 +    ADAPS_DBG_SKIP_SENSOR_READY_CHECK   = BIT(20),
-+    ADAPS_DBG_ENABLE_BIG_FOV_MODULE     = BIT(21),
++//    ADAPS_DBG_ENABLE_BIG_FOV_MODULE     = BIT(21),
 +    ADAPS_DBG_ENABLE_VCSEL_L_MODE       = BIT(22),
 +
 +    ADAPS_DBG_ONCE                      = BIT(23)  // keep at LAST seat.
@@ -2372,9 +2425,19 @@ index 000000000000..ed905f6ba797
 +    return i2c_dev_write_reg_list(sensor, sensor->sensor_i2c, reglist);
 +}
 +
++static int sensor_write_reg_8bit_value(struct sensor *sensor, u16 reg, const u8 val8)
++{
++    return i2c_dev_burst_write_reg(sensor, sensor->sensor_i2c, reg, &val8, 1);
++}
++
 +static int sensor_burst_read_reg(struct sensor *sensor, u8 reg, char *buf, int len)
 +{
 +    return i2c_dev_burst_read_reg(sensor, sensor->sensor_i2c, reg, buf, len);
++}
++
++static int sensor_read_reg_8bit_value(struct sensor *sensor, u16 reg, u8 *val8)
++{
++    return i2c_dev_burst_read_reg(sensor, sensor->sensor_i2c, reg, val8, 1);
 +}
 +
 +static int sensor_ready_check(struct sensor *sensor)
@@ -2458,7 +2521,6 @@ index 000000000000..ed905f6ba797
 +    u8  val;
 +    uint16_t reg;
 +    uint16_t val16;
-+    u32 val32 = 0;
 +
 +    if (false == sensor->power_on)
 +    {
@@ -2468,46 +2530,37 @@ index 000000000000..ed905f6ba797
 +
 +    reg = SWIFT_OTP_CTRL_REG;
 +    val = 0x40;
-+    ret = sensor_burst_write_reg(sensor, 
-+        reg,
-+        &val,
-+        1);
++    ret = sensor_write_reg_8bit_value(sensor, reg, val);
 +    if (ret < 0) {
 +        return ret;
 +    }
 +
 +    reg = SWIFT_OTP_ADDR_REG;
 +    val = offset;
-+    ret = sensor_burst_write_reg(sensor, 
-+        reg,
-+        &val,
-+        1);
++    ret = sensor_write_reg_8bit_value(sensor, reg, val);
 +    if (ret < 0) {
 +        return ret;
 +    }
 +
 +    reg = SWIFT_OTP_CTRL_REG;
 +    val = 0x41;
-+    ret = sensor_burst_write_reg(sensor, 
-+        reg,
-+        &val,
-+        1);
++    ret = sensor_write_reg_8bit_value(sensor, reg, val);
 +    if (ret < 0) {
 +        return ret;
 +    }
 +    msleep(1);
 +
-+    ret = sensor_read_reg(sensor, SWIFT_OTP_DATAH_REG, 1, &val32);
++    ret = sensor_read_reg_8bit_value(sensor, SWIFT_OTP_DATAH_REG, &val);
 +    if (ret < 0) {
 +        return ret;
 +    }
-+    val16 = (val32 & 0xFF) << 8;
++    val16 = val << 8;
 +
-+    ret = sensor_read_reg(sensor, SWIFT_OTP_DATAL_REG, 1, &val32);
++    ret = sensor_read_reg_8bit_value(sensor, SWIFT_OTP_DATAL_REG, &val);
 +    if (ret < 0) {
 +        return ret;
 +    }
-+    val16 = val16 | (val32 & 0xFF);
++    val16 = val16 | val;
 +    *pusData = val16;
 +
 +    DBG_INFO("sensor otp data[%02x]: 0x%04x\n", offset, val16);
@@ -2645,7 +2698,7 @@ index 000000000000..ed905f6ba797
 +    int i;
 +    char *buf;
 +    u8 reg;
-+    uint32_t data;
++    u8 val;
 +    int rc = 0;
 +    u8 regBuf[256] = {0};
 +    int buf_len = 0;
@@ -2660,8 +2713,8 @@ index 000000000000..ed905f6ba797
 +    for (i=0; i< 0xf0; i++)
 +    {
 +        reg = i;
-+        rc = sensor_read_reg(sensor, reg, 1, &data);
-+        regBuf[i] = (u8) data & 0xff;
++        rc = sensor_read_reg_8bit_value(sensor, reg, &val);
++        regBuf[i] = val;
 +    }
 +
 +    buf_len = sensor_output_tof_sensor_reg(sensor,buf, regBuf, noSkip, out_2_console, callfunc, callline);
@@ -2727,22 +2780,17 @@ index 000000000000..ed905f6ba797
 +{
 +    int ret = 0;
 +    u8 reg, val;
-+    u32 data;
 +
 +    if (sensor->dbg_ctrl & ADAPS_DBG_TESTPATTERN_ENABLE)
 +    {
 +        reg = 0xDF;
-+        ret = sensor_read_reg(sensor, reg, 1, &data);
++        ret = sensor_read_reg_8bit_value(sensor, reg, &val);
 +        if (ret) {
 +            DBG_ERROR("fail to read sensor register:0x%x, ret:%d\n",reg, ret);
 +            return ret;
 +        }
-+        val = data & 0xff;
 +        val = val | 0x08;
-+        ret = sensor_burst_write_reg(sensor, 
-+            reg, 
-+            &val, 
-+            1);
++        ret = sensor_write_reg_8bit_value(sensor, reg, val);
 +        if (ret) {
 +            DBG_ERROR("fail to write sensor register, reg: 0x%x, ret:%d\n", reg, ret);
 +            return ret;
@@ -3486,10 +3534,7 @@ index 000000000000..ed905f6ba797
 +        {
 +            reg = 0xBC;
 +            val = 0x60;
-+            ret = sensor_burst_write_reg(sensor, 
-+                reg,
-+                &val,
-+                1);
++            ret = sensor_write_reg_8bit_value(sensor, reg, val);
 +            if (ret)
 +            {
 +                DBG_ERROR("fail to write sensor register, reg: 0x%x, ret:%d\n", reg, ret);
@@ -3498,10 +3543,7 @@ index 000000000000..ed905f6ba797
 +
 +            reg = 0xCB;
 +            val = 0x00;
-+            ret = sensor_burst_write_reg(sensor, 
-+                reg,
-+                &val,
-+                1);
++            ret = sensor_write_reg_8bit_value(sensor, reg, val);
 +            if (ret)
 +            {
 +                DBG_ERROR("fail to write sensor register, reg: 0x%x, ret:%d\n", reg, ret);
@@ -3517,10 +3559,7 @@ index 000000000000..ed905f6ba797
 +
 +            reg = 0xC2;
 +            val = sensor->grayExposureCfg;
-+            ret = sensor_burst_write_reg(sensor, 
-+                reg,
-+                &val,
-+                1);
++            ret = sensor_write_reg_8bit_value(sensor, reg, val);
 +            if (ret) {
 +                DBG_ERROR("fail to write sensor register, reg: 0x%x, ret:%d\n", reg, ret);
 +                return ret;
@@ -3533,10 +3572,7 @@ index 000000000000..ed905f6ba797
 +
 +            reg = 0xBC;
 +            val = BIT(7) | sensor->laserExposurePeriodCfg;
-+            ret = sensor_burst_write_reg(sensor, 
-+                reg,
-+                &val,
-+                1);
++            ret = sensor_write_reg_8bit_value(sensor, reg, val);
 +            if (ret) {
 +                DBG_ERROR("fail to write sensor register, reg: 0x%x, ret:%d\n", reg, ret);
 +                return ret;
@@ -3604,10 +3640,7 @@ index 000000000000..ed905f6ba797
 +
 +        DBG_INFO("------etype:%d, mtype:%d, val for B6: 0x%02x, current workmode: %d",etype, mtype, val, sensor->cur_wkmode);
 +        reg = 0xB6;
-+        ret = sensor_burst_write_reg(sensor, 
-+            reg,
-+            &val,
-+            1);
++        ret = sensor_write_reg_8bit_value(sensor, reg, val);
 +        if (ret) {
 +            DBG_ERROR("fail to write sensor register, reg: 0x%x, ret:%d\n", reg, ret);
 +            return ret;
@@ -3617,10 +3650,7 @@ index 000000000000..ed905f6ba797
 +        {
 +            reg = 0xBC;
 +            val = BIT(7) | VCSEL_LASER_PERIOD;
-+            ret = sensor_burst_write_reg(sensor, 
-+                reg,
-+                &val,
-+                1);
++            ret = sensor_write_reg_8bit_value(sensor, reg, val);
 +            if (ret) {
 +                DBG_ERROR("fail to write sensor register, reg: 0x%x, ret:%d\n", reg, ret);
 +                return ret;
@@ -3628,10 +3658,7 @@ index 000000000000..ed905f6ba797
 +
 +            reg = 0xBF;
 +            val = COARSE_EXPOSURE_TIME;
-+            ret = sensor_burst_write_reg(sensor, 
-+                reg,
-+                &val,
-+                1);
++            ret = sensor_write_reg_8bit_value(sensor, reg, val);
 +            if (ret) {
 +                DBG_ERROR("fail to write sensor register, reg: 0x%x, ret:%d\n", reg, ret);
 +                return ret;
@@ -3656,10 +3683,7 @@ index 000000000000..ed905f6ba797
 +#else
 +            val = FINE_EXPOSURE_TIME;  // 0x26
 +#endif
-+            ret = sensor_burst_write_reg(sensor, 
-+                reg,
-+                &val,
-+                1);
++            ret = sensor_write_reg_8bit_value(sensor, reg, val);
 +            if (ret) {
 +                DBG_ERROR("fail to write sensor register, reg: 0x%x, ret:%d\n", reg, ret);
 +                return ret;
@@ -3670,10 +3694,7 @@ index 000000000000..ed905f6ba797
 +            {
 +                reg = 0xDA;
 +                val = 0x6A;  //for outdoor 9v config
-+                ret = sensor_burst_write_reg(sensor, 
-+                    reg,
-+                    &val,
-+                    1);
++                ret = sensor_write_reg_8bit_value(sensor, reg, val);
 +                if (ret) {
 +                    DBG_ERROR("fail to write sensor register, reg: 0x%x, ret:%d\n", reg, ret);
 +                    return ret;
@@ -3689,10 +3710,7 @@ index 000000000000..ed905f6ba797
 +
 +            reg = 0xBF;
 +            val = sensor->coarseExposureCfg;
-+            ret = sensor_burst_write_reg(sensor, 
-+                reg,
-+                &val,
-+                1);
++            ret = sensor_write_reg_8bit_value(sensor, reg, val);
 +            if (ret) {
 +                DBG_ERROR("fail to write sensor register, reg: 0x%x, ret:%d\n", reg, ret);
 +                return ret;
@@ -3705,10 +3723,7 @@ index 000000000000..ed905f6ba797
 +
 +            reg = 0xC0;
 +            val = sensor->fineExposureCfg;
-+            ret = sensor_burst_write_reg(sensor, 
-+                reg,
-+                &val,
-+                1);
++            ret = sensor_write_reg_8bit_value(sensor, reg, val);
 +            if (ret) {
 +                DBG_ERROR("fail to write sensor register, reg: 0x%x, ret:%d\n", reg, ret);
 +                return ret;
@@ -3721,10 +3736,7 @@ index 000000000000..ed905f6ba797
 +        
 +            reg = 0xBC;
 +            val = BIT(7) | sensor->laserExposurePeriodCfg;
-+            ret = sensor_burst_write_reg(sensor, 
-+                reg,
-+                &val,
-+                1);
++            ret = sensor_write_reg_8bit_value(sensor, reg, val);
 +            if (ret) {
 +                DBG_ERROR("fail to write sensor register, reg: 0x%x, ret:%d\n", reg, ret);
 +                return ret;
@@ -3739,23 +3751,19 @@ index 000000000000..ed905f6ba797
 +{
 +    int ret = 0;
 +    u8 reg, val;
-+    u32 data;
 +
 +    if (sensor->cur_frtype >= AdapsFramerateType15FPS && sensor->cur_frtype <= AdapsFramerateType60FPS)
 +    {
 +        reg = 0xA6;
-+        ret = sensor_read_reg(sensor, reg, 1, &data);
++        ret = sensor_read_reg_8bit_value(sensor, reg, &val);
 +        if (ret) {
 +            DBG_ERROR("fail to read sensor register:0x%x, ret:%d\n",reg, ret);
 +            return ret;
 +        }
-+        val = data & 0x03; //get the bit1-bit0 value
++        val = val & 0x03; //get the bit1-bit0 value
 +
 +        val |= (sensor->cur_frtype - 1) << 2;
-+        ret = sensor_burst_write_reg(sensor, 
-+            reg, 
-+            &val, 
-+            1);
++        ret = sensor_write_reg_8bit_value(sensor, reg, val);
 +        if (ret) {
 +            DBG_ERROR("fail to write sensor register, reg: 0x%x, ret:%d\n", reg, ret);
 +            return ret;
@@ -3874,10 +3882,7 @@ index 000000000000..ed905f6ba797
 +
 +    reg = 0xc3;
 +    val = sensor->tdc_delay_major;
-+    ret = sensor_burst_write_reg(sensor, 
-+        reg, 
-+        &val, 
-+        1);
++    ret = sensor_write_reg_8bit_value(sensor, reg, val);
 +    if (ret) {
 +        DBG_ERROR("fail to write sensor register, reg: 0x%x, ret:%d\n", reg, ret);
 +        return ret;
@@ -3885,10 +3890,7 @@ index 000000000000..ed905f6ba797
 +
 +    reg = 0xc4;
 +    val = sensor->tdc_delay_minor;
-+    ret = sensor_burst_write_reg(sensor, 
-+        reg, 
-+        &val, 
-+        1);
++    ret = sensor_write_reg_8bit_value(sensor, reg, val);
 +    if (ret) {
 +        DBG_ERROR("fail to write sensor register, reg: 0x%x, ret:%d\n", reg, ret);
 +        return ret;
@@ -3902,7 +3904,6 @@ index 000000000000..ed905f6ba797
 +    int j,ret = 0;
 +    u8 reg, val;
 +    u32 len;
-+    u32 data;
 +    u8 *cali_sram_data_for_verify;
 +
 +    if (NULL == sensor) {
@@ -3916,12 +3917,11 @@ index 000000000000..ed905f6ba797
 +    }
 +
 +    reg = 0xD3;
-+    ret = sensor_read_reg(sensor, reg, 1, &data);
++    ret = sensor_read_reg_8bit_value(sensor, reg, &val);
 +    if (ret) {
 +        DBG_ERROR("fail to read sensor register:0x%x, ret:%d\n",reg, ret);
 +        return ret;
 +    }
-+    val = data & 0xff;
 +    DBG_INFO("PLL register: 0x%x", val);
 +    if (0x00 == (val & 0x80)){
 +        DBG_ERROR("Need PLL lock before read ROI SRAM register.");
@@ -4020,8 +4020,6 @@ index 000000000000..ed905f6ba797
 +{
 +    int ret = 0;
 +    u8 reg, val;
-+    u32 len;
-+    u32 data;
 +    u8 sram_offset_initial_value=0;
 +    u8 *p_sramdata = NULL;
 +#if defined(SAVE_ROISRAM_DATA_TO_FILE)
@@ -4029,13 +4027,8 @@ index 000000000000..ed905f6ba797
 +    int sram_index = 1;
 +#endif
 +
-+#if defined(RW_WHOLE_ROISRAM)
-+    u32 op_sram_size = ALL_ROISRAM_GROUP_SIZE;
-+    u8 op_sram_reg = CALIB_SRAM_REG_BASE1;
-+#else
 +    u32 op_sram_size = PER_ROISRAM_GROUP_SIZE;
 +    u8 op_sram_reg = CALIB_SRAM_REG_BASE0;
-+#endif
 +
 +    if (NULL == sensor->eeprom_data)
 +    {
@@ -4046,12 +4039,11 @@ index 000000000000..ed905f6ba797
 +    p_sramdata = sensor->eeprom_data->sramData;
 +
 +    reg = 0xD3;
-+    ret = sensor_read_reg(sensor, reg, 1, &data);
++    ret = sensor_read_reg_8bit_value(sensor, reg, &val);
 +    if (ret) {
 +        DBG_ERROR("fail to read sensor register:0x%x, ret:%d\n",reg, ret);
 +        return ret;
 +    }
-+    val = data & 0xff;
 +    DBG_INFO("PLL register: 0x%x", val);
 +    if (0x00 == (val & 0x80)){
 +        DBG_ERROR("Need PLL lock before writing ROI SRAM register.");
@@ -4071,11 +4063,7 @@ index 000000000000..ed905f6ba797
 +
 +    reg = CSRU_SRAM_OFFSET_REG;
 +    val = sram_offset_initial_value;
-+    len = 1;
-+    ret = sensor_burst_write_reg(sensor, 
-+        reg, 
-+        &val, 
-+        len);
++    ret = sensor_write_reg_8bit_value(sensor, reg, val);
 +    if (ret) {
 +        DBG_ERROR("fail to write sram offset register, reg: 0x%x\n", reg);
 +        return ret;
@@ -4254,7 +4242,6 @@ index 000000000000..ed905f6ba797
 +{
 +    int ret;
 +    ktime_t start;
-+    uint32_t data;
 +    s64 us_delta;
 +    u8 val8 = 0;
 +    int times = 0;
@@ -4266,8 +4253,7 @@ index 000000000000..ed905f6ba797
 +    }
 +
 +    do {
-+        ret = sensor_read_reg(sensor, 0xAD, 1, &data);
-+        val8 = (u8) data & 0xff;
++        ret = sensor_read_reg_8bit_value(sensor, 0xAD, &val8);
 +        us_delta = ktime_us_delta(ktime_get(), start);
 +        if (ret < 0) {
 +            DBG_INFO("Fail to read status register of the sensor, ret: %d.\n", ret);
@@ -4628,10 +4614,7 @@ index 000000000000..ed905f6ba797
 +                reg,
 +                val
 +                );
-+            ret = sensor_burst_write_reg(sensor, 
-+                reg, 
-+                &val, 
-+                1);
++            ret = sensor_write_reg_8bit_value(sensor, reg, val);
 +#endif
 +            break;
 +
@@ -4793,10 +4776,7 @@ index 000000000000..ed905f6ba797
 +
 +    ret = sscanf(buf, "write %02hhx %02hhx", &reg, &val);
 +    if (ret == 2) {
-+        ret = sensor_burst_write_reg(sensor, 
-+            reg, 
-+            &val, 
-+            1);
++        ret = sensor_write_reg_8bit_value(sensor, reg, val);
 +        printk2console("Write reg[0x%02x] to 0x%02x, ret: %d...", reg, val, ret);
 +
 +        return ret ? ret : count;
@@ -4841,9 +4821,9 @@ index 000000000000..ed905f6ba797
 +        sprintf(buf, "%s", "NA");
 +    }
 +    else {
-+        int val = 0;
++        u8 val = 0;
 +
-+        ret = sensor_read_reg(sensor, 0xA4, 1, &val);
++        ret = sensor_read_reg_8bit_value(sensor, 0xA4, &val);
 +        if (ret < 0)
 +        {
 +            sprintf(buf, "%s", "NA");
@@ -4864,17 +4844,7 @@ index 000000000000..ed905f6ba797
 +
 +static void get_module_type(struct sensor *sensor, u32 *ret_type)
 +{
-+#if defined(ENABLE_BIG_FOV_MODULE)
-+    *ret_type = ADS6401_MODULE_BIG_FOV_FLOOD;
-+#else
-+    if (0 == (sensor->dbg_ctrl & ADAPS_DBG_ENABLE_BIG_FOV_MODULE)) // the tranditional spot module
-+    {
-+        *ret_type = SWIFT_MODULE_TYPE;
-+    }
-+    else {                                                           // the big FOV spot module
-+        *ret_type = ADS6401_MODULE_BIG_FOV_FLOOD;
-+    }
-+#endif
++    *ret_type = SWIFT_MODULE_TYPE;
 +
 +    return ;
 +}
@@ -5183,10 +5153,6 @@ index 000000000000..ed905f6ba797
 +    #error "Either VOP_ADJUST_BY_BUILT_IN_MCU or ENABLE_SOC_PWM_4_VOP_VOLTAGE needs to be defined!!!"
 +    #endif
 +
-+    #if defined(ENABLE_BIG_FOV_MODULE)
-+    #error "ENABLE_BIG_FOV_MODULE is not available for FLOOD module!!!"
-+    #endif
-+
 +#else
 +
 +#endif
@@ -5208,7 +5174,6 @@ index 000000000000..ed905f6ba797
 +        "---------------------------------------------------------\n"
 +        "MINI_DEMO_BOX:                                     %s\n"
 +        "ADS6401_MODULE_TYPE:                               %s\n"
-+        "ENABLE_BIG_FOV_MODULE:                             %s\n"
 +        "CALIB_DATA_READY_IN_EEPROM_CHIP:                   %s\n"
 +        "FRAMERATE_TEST_4_60FPS:                            %s\n"
 +        "SENSOR_XCLK_FROM_SOC:                              %s\n"
@@ -5223,8 +5188,7 @@ index 000000000000..ed905f6ba797
 +        "ENABLE_SOC_PWM_4_VOP_VOLTAGE:                      %s\n"
 +        "ENABLE_SENSOR_ROI_SWITCH_BY_FSYNC_IRQ:             %s\n"
 +        "INTERNAL_DBG_ENABLE:                               %s\n"
-+        "ROISRAM_ANCHOR_PREPROCCESS_ENABLE:                 %s\n"
-+        "RW_WHOLE_ROISRAM:                                  %s\n\n"
++        "ROISRAM_ANCHOR_PREPROCCESS_ENABLE:                 %s\n\n"
 +
 +        "NON_CONTINUOUS_MIPI_CLK:                           %s\n"
 +        "MIPI_DATA_LANE_COUNT:                              %d\n"
@@ -5240,12 +5204,6 @@ index 000000000000..ed905f6ba797
 +#endif
 +
 +        ADS6401_MODULE_TYPE_NAME,
-+
-+#if defined(ENABLE_BIG_FOV_MODULE)
-+        "Yes",
-+#else
-+        "No",
-+#endif
 +
 +#if defined(CALIB_DATA_READY_IN_EEPROM_CHIP)
 +        "Yes",
@@ -5337,12 +5295,6 @@ index 000000000000..ed905f6ba797
 +        "No",
 +#endif
 +
-+#if defined(RW_WHOLE_ROISRAM)
-+        "Yes",
-+#else
-+        "No",
-+#endif
-+
 +#if defined(NON_CONTINUOUS_MIPI_CLK)
 +        "Yes",
 +#else
@@ -5402,55 +5354,46 @@ index 000000000000..ed905f6ba797
 +    }
 +
 +    reg = 0xA9;
-+    rc = sensor_read_reg(sensor, reg, 1, &data);
-+    val8 = (u8) data & 0xff;
++    rc = sensor_read_reg_8bit_value(sensor, reg, &val8);
 +    mipi_tx_delay_cfg = val8;
 +
 +    reg = 0xA5;
-+    rc = sensor_read_reg(sensor, reg, 1, &data);
-+    val8 = (u8) data & 0xff;
++    rc = sensor_read_reg_8bit_value(sensor, reg, &val8);
 +    sysclk_div_n = (val8 & 0x0F);
 +    sysclk_div_m = ((val8 >> 4) & 0x0F);
 +
 +    reg = 0xD4;
-+    rc = sensor_read_reg(sensor, reg, 1, &data);
-+    val8 = (u8) data & 0xff;
++    rc = sensor_read_reg_8bit_value(sensor, reg, &val8);
 +    syspll_id = ((val8 >> 4) & 0x07);
 +    syspll_od = (1 << ((val8 & 0x03) + 1));
 +
 +    reg = 0xD5;
-+    rc = sensor_read_reg(sensor, reg, 1, &data);
-+    val8 = (u8) data & 0xff;
++    rc = sensor_read_reg_8bit_value(sensor, reg, &val8);
 +    syspll_fb = val8;
 +
 +    reg = 0xD6;
-+    rc = sensor_read_reg(sensor, reg, 1, &data);
-+    val8 = (u8) data & 0xff;
++    rc = sensor_read_reg_8bit_value(sensor, reg, &val8);
 +    syspll_ld = (1 << (val8 & 0x03));
 +
 +    reg = 0xE6;
-+    rc = sensor_read_reg(sensor, reg, 1, &data);
-+    val8 = (u8) data & 0xff;
++    rc = sensor_read_reg_8bit_value(sensor, reg, &val8);
 +    mipipll_div_ns = ((val8 << 8) & 0x100);
 +    reg = 0xE7;
-+    rc = sensor_read_reg(sensor, reg, 1, &data);
-+    val8 = (u8) data & 0xff;
++    rc = sensor_read_reg_8bit_value(sensor, reg, &val8);
 +    mipipll_div_ns |= val8;
 +
 +    reg = 0xE9;
-+    rc = sensor_read_reg(sensor, reg, 1, &data);
-+    val8 = (u8) data & 0xff;
++    rc = sensor_read_reg_8bit_value(sensor, reg, &val8);
 +    mipipll_div_ps = (val8 & 0x1F);
 +    mipipll_div_ms = ((val8 >> 5) & 0x07);
 +
 +    reg = 0x81;
-+    rc = sensor_read_reg(sensor, reg, 1, &data);
-+    val8 = (u8) data & 0xff;
++    rc = sensor_read_reg_8bit_value(sensor, reg, &val8);
 +    mipi_dphy_tx_frange_cfg = ((val8 >> 3) & 0x4);
 +    DBG_INFO("data: 0x%x, val8: 0x%x, mipi_dphy_tx_frange_cfg: 0x%x", data, val8, mipi_dphy_tx_frange_cfg);
 +    reg = 0x7E;
-+    rc = sensor_read_reg(sensor, reg, 1, &data);
-+    val8 = (u8) (data >> 2) & 0x3;
++    rc = sensor_read_reg_8bit_value(sensor, reg, &val8);
++    val8 = (val8 >> 2) & 0x3;
 +    mipi_dphy_tx_frange_cfg |= val8;
 +    DBG_INFO("data: 0x%x, val8: 0x%x, mipi_dphy_tx_frange_cfg: 0x%x", data, val8, mipi_dphy_tx_frange_cfg);
 +
@@ -6286,10 +6229,7 @@ index 000000000000..ed905f6ba797
 +            val = 0x01;
 +        }
 +
-+        ret = sensor_burst_write_reg(sensor, 
-+            reg, 
-+            &val, 
-+            1);
++        ret = sensor_write_reg_8bit_value(sensor, reg, val);
 +        if (ret < 0) {
 +            DBG_ERROR("fail to write sensor register, reg: 0x%x, ret:%d\n", reg, ret);
 +            return ret;
@@ -7050,7 +6990,7 @@ index 000000000000..ed905f6ba797
 +            {
 +                reg8 = register_op_data.reg_addr & 0xFF;
 +                val8 = register_op_data.reg_val & 0xFF;
-+                ret = sensor_burst_write_reg(sensor, reg8, &val8, 1);
++                ret = sensor_write_reg_8bit_value(sensor, reg8, val8);
 +            }
 +            break;
 +
@@ -7086,11 +7026,11 @@ index 000000000000..ed905f6ba797
 +#endif
 +            {
 +                reg8 = register_op_data.reg_addr & 0xFF;
-+                ret = sensor_read_reg(sensor, reg8, 1, &val32);
++                ret = sensor_read_reg_8bit_value(sensor, reg8, &val8);
 +                if (ret < 0) {
 +                    break;
 +                }
-+                register_op_data.reg_val = val32 & 0xFF;
++                register_op_data.reg_val = val8;
 +            }
 +
 +            if (copy_to_user((register_op_data_t *)uarg, &register_op_data, sizeof(register_op_data_t)))
@@ -7870,7 +7810,7 @@ index 000000000000..ed905f6ba797
 +MODULE_VERSION(FULL_VERSION_STRING);
 +
 diff --git a/drivers/media/i2c/ads6401_flood.c b/drivers/media/i2c/ads6401_flood.c
-new file mode 100644
+new file mode 100755
 index 000000000000..ecd2e0064864
 --- /dev/null
 +++ b/drivers/media/i2c/ads6401_flood.c
@@ -9646,10 +9586,10 @@ index 000000000000..ecd2e0064864
 +#endif
 diff --git a/drivers/media/i2c/ads6401_spot.c b/drivers/media/i2c/ads6401_spot.c
 new file mode 100755
-index 000000000000..b8c7663f6254
+index 000000000000..7259af4f0285
 --- /dev/null
 +++ b/drivers/media/i2c/ads6401_spot.c
-@@ -0,0 +1,1346 @@
+@@ -0,0 +1,1312 @@
 +#if (ADS6401_MODULE_FLOOD != SWIFT_MODULE_TYPE)
 +
 +#define COARSE_EXPOSURE_TIME            0x01    // unit is 80us, for register 0xBF
@@ -9767,7 +9707,7 @@ index 000000000000..b8c7663f6254
 +    {0x54, 0x09, 0},
 +    {0x52, 0x11, 0},
 +    {0x50, 0x83, 0},
-+#if defined(ENABLE_BIG_FOV_MODULE)
++#if (ADS6401_MODULE_BIG_FOV_FLOOD == SWIFT_MODULE_TYPE)
 +    {0x5f, 0x1d, 0},
 +    {0x5e, 0x11, 0},
 +#else
@@ -10326,7 +10266,7 @@ index 000000000000..b8c7663f6254
 +        return -EINVAL;
 +    }
 +
-+#if defined(ENABLE_BIG_FOV_MODULE)
++#if (ADS6401_MODULE_BIG_FOV_FLOOD == SWIFT_MODULE_TYPE)
 +    sensor_set_pvdd_voltage(sensor, PVDD_VOLTAGE_4_OUTDOOR_MODE);
 +
 +    reg = 0x5f;
@@ -10358,69 +10298,35 @@ index 000000000000..b8c7663f6254
 +        return ret;
 +    }
 +#else
-+    if (0 == (sensor->dbg_ctrl & ADAPS_DBG_ENABLE_BIG_FOV_MODULE)) // the tranditional spot module
++    if (AdapsEnvTypeOutdoor == sensor->cur_etype)
 +    {
-+        if (AdapsEnvTypeOutdoor == sensor->cur_etype)
++        sensor_set_pvdd_voltage(sensor, PVDD_VOLTAGE_4_OUTDOOR_MODE);
++    }
++    else {
++        sensor_set_pvdd_voltage(sensor, PVDD_VOLTAGE_4_INDOOR_MODE);
++    }
++    
++    reg = 0x5e;
++    if (AdapsVcselModeOff == vmode)
++    {
++        val = 0x00;
++    }
++    else {
++        if (AdapsVcselZoneCount1 == vcselzonecount_type)
 +        {
-+            sensor_set_pvdd_voltage(sensor, PVDD_VOLTAGE_4_OUTDOOR_MODE);
++            val = 0x01;
 +        }
 +        else {
-+            sensor_set_pvdd_voltage(sensor, PVDD_VOLTAGE_4_INDOOR_MODE);
-+        }
-+
-+        reg = 0x5e;
-+        if (AdapsVcselModeOff == vmode)
-+        {
-+            val = 0x00;
-+        }
-+        else {
-+            if (AdapsVcselZoneCount1 == vcselzonecount_type)
-+            {
-+                val = 0x01;
-+            }
-+            else {
-+                val = 0x0f;
-+            }
-+        }
-+        ret = i2c_dev_burst_write_reg(sensor, sensor->vcsel_i2c, 
-+            reg, 
-+            &val, 
-+            1);
-+        if (ret) {
-+            DBG_ERROR("fail to write sensor register, reg: 0x%x, ret:%d\n", reg, ret);
-+            return ret;
++            val = 0x0f;
 +        }
 +    }
-+    else {                                                           // the big FOV spot module
-+        sensor_set_pvdd_voltage(sensor, PVDD_VOLTAGE_4_OUTDOOR_MODE);
-+
-+        reg = 0x5f;
-+        val = 0x1d;
-+        ret = i2c_dev_burst_write_reg(sensor, sensor->vcsel_i2c, 
-+            reg, 
-+            &val, 
-+            1);
-+        if (ret) {
-+            DBG_ERROR("fail to write sensor register, reg: 0x%x, ret:%d\n", reg, ret);
-+            return ret;
-+        }
-+
-+        reg = 0x5e;
-+        if (0 == (sensor->dbg_ctrl & ADAPS_DBG_ENABLE_VCSEL_L_MODE)) // the tranditional vcsel flood mode
-+        {
-+            val = 0x11;
-+        }
-+        else {
-+            val = 0x22;
-+        }
-+        ret = i2c_dev_burst_write_reg(sensor, sensor->vcsel_i2c, 
-+            reg, 
-+            &val, 
-+            1);
-+        if (ret) {
-+            DBG_ERROR("fail to write sensor register, reg: 0x%x, ret:%d\n", reg, ret);
-+            return ret;
-+        }
++    ret = i2c_dev_burst_write_reg(sensor, sensor->vcsel_i2c, 
++        reg, 
++        &val, 
++        1);
++    if (ret) {
++        DBG_ERROR("fail to write sensor register, reg: 0x%x, ret:%d\n", reg, ret);
++        return ret;
 +    }
 +#endif
 +
@@ -11569,7 +11475,7 @@ index 8c3d0580889b..d98ef2a7b561 100644
  
  extern struct platform_driver rkcif_plat_drv;
 diff --git a/include/uapi/linux/adaps_dtof_uapi.h b/include/uapi/linux/adaps_dtof_uapi.h
-new file mode 100644
+new file mode 100755
 index 000000000000..11b996e7d66b
 --- /dev/null
 +++ b/include/uapi/linux/adaps_dtof_uapi.h
@@ -12392,11 +12298,11 @@ index 000000000000..11b996e7d66b
 +#endif /* _ADAPS_DTOF_UAPI_H */
 +
 diff --git a/include/uapi/linux/adaps_types.h b/include/uapi/linux/adaps_types.h
-new file mode 100644
-index 000000000000..15c3968a9408
+new file mode 100755
+index 000000000000..709adccc5778
 --- /dev/null
 +++ b/include/uapi/linux/adaps_types.h
-@@ -0,0 +1,188 @@
+@@ -0,0 +1,186 @@
 +#ifndef ADAPS_TYPES_H
 +#define ADAPS_TYPES_H
 +
@@ -12429,8 +12335,6 @@ index 000000000000..15c3968a9408
 +#define FALSE                               0
 +#endif // !defined (FALSE)
 +
-+//#define REG_NULL                            0xFF
-+//#define REG16_NULL                          0xFFFF
 +#define MAX_REG_SETTING_COUNT               100
 +#define MAX_SCRIPT_ITEM_COUNT               400
 +

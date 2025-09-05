@@ -23,15 +23,20 @@
 ./tools/buildtools/device/rockchip/common/mk-fitimage.sh
 ./tools/buildtools/device/rockchip/rk3568/boot.its
 ./tools/buildtools/device/rockchip/rk3568/parameter-buildroot-fit.txt
-./tools/buildtools/prebuilts.zip
-./tools/buildtools/prebuilts.z01
-./tools/buildtools/prebuilts.z02
-./tools/buildtools/prebuilts.z03
+./tools/buildtools/prebuilts.tgz.part.aa
+./tools/buildtools/prebuilts.tgz.part.ab
+./tools/buildtools/prebuilts.tgz.part.ac
+./tools/buildtools/prebuilts.tgz.part.ad
+./tools/buildtools/prebuilts.tgz.part.ae
+./tools/buildtools/prebuilts.tgz.part.af
 ./tools/buildtools/rk3568_linux_510_110_ads6401_for_mini_demo_box.patch
 ./tools/buildtools/rkbin/tools/mkimage
 ./tools/DriverAssitant_v5.12.zip
 ./tools/RkDevTool_2.96.zip
 ```
+
+### 重要提醒：
+   **请在Linux系统下git clone上述Ads6401_Linux_Driver仓库，后续的操作也在Linux系统下进行，因为它们当中包括Windows不支持的符号链接等特征**！
     
 ### 该工具包的主要功能：
 
@@ -53,7 +58,7 @@ git clone https://github.com/David1934/Ads6401_Linux_Driver
 3. 解压编译工具包中的交叉编译工具链
 ```
 cd Ads6401_Linux_Driver/tools/buildtools
-unzip prebuilts.zip
+cat prebuilts.tgz.part.a* | tar xzvf -
 ```
 
 4. 下载Rockchip的Linux kernel源码
@@ -63,11 +68,9 @@ cd Ads6401_Linux_Driver/tools/buildtools
 # 将在当前目录下创建kernel目录，存储Rockchip Linux kernel的源码
 ```
 
-5. 手动修改或应用示范的patch包（rk3568_linux_510_110_ads6401_for_mini_demo_box.patch）来修改好Linux kernel源码
-```
-# 该步骤仅用于演示Adaps公司Mini demo样机的kernel修改，你需要你的开发板和实际情况做合适的修改
-./build.sh apply_patch
-```
+5. 移植dts及驱动源码
+   请参考顶级目录下的ads6401_linux_driver_code*.zip文件，以及[Linux_Driver_porting_guide_for_ads6401](README_zh_CN.md)
+  **驱动程序跟硬件电路紧密相关，我们的驱动发布包仅供参考，客户应在充分理解驱动源码后，根据自己实际的硬件环境进行适当的修改（包括一些编译开关的配置）**
 
 6. 编译和生成boot.img文件
 ```

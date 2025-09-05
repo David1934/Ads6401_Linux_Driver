@@ -161,9 +161,7 @@ usage()
 	echo "Usage: build.sh [OPTIONS]"
 	echo "Available options:"
 	echo "clone_kernel       -git clone kernel"
-	echo "apply_patch        -appyly patch for ads6401 sensor"
 	echo "kernel             -build kernel"
-	echo "modules            -build kernel modules"
 	echo "clean              -clean kernel"
 }
 
