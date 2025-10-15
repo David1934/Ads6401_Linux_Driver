@@ -40,14 +40,18 @@
     
 ### 该工具包的主要功能：
 
-A. 从git hub克隆一个开源的Rockchip Linux kernel源码
-B. 使用示例的补丁包，生成ads6401 for mini demo box的完整驱动源码 （你也可以手动集成和个性化定制修改）
-C. 编译内核镜像并生成boot.img文件（在rockdev目录下）
-D. 清除kernel的编译结果
+1. 从git hub克隆一个开源的Rockchip Linux kernel源码
+1. 使用示例的补丁包，生成ads6401 for mini demo box的完整驱动源码 （你也可以手动集成和个性化定制修改）
+1. 编译内核镜像并生成boot.img文件（在rockdev目录下）
+1. 清除kernel的编译结果
 
 ### 具体步骤：
 
 1. 安装Linux开发环境 (make, git 等)
+```
+cd ~
+sudo apt install -y bc binfmt-support bison bsdmainutils build-essential bzip2 chrpath cmake cpio cpp-aarch64-linux-gnu debianutils device-tree-compiler diffstat expat expect fakeroot fdisk file flex g++ gawk gcc gcc-multilib  g++-multilib gpgv2 iputils-ping libegl1-mesa libelf-dev libgmp-dev libgucharmap-2-90-dev liblz4-tool libmpc-dev libsdl1.2-dev libssl-dev live-build make ncurses-dev net-tools patchelf python2 python3 python-is-python3 python3-jinja2 python3-pexpect python3-pip  socat strace texinfo time tree unzip
+```
 
 2. 从github上下载驱动源码及编译工具包
 ```
@@ -59,6 +63,7 @@ git clone https://github.com/David1934/Ads6401_Linux_Driver
 ```
 cd Ads6401_Linux_Driver/tools/buildtools
 cat prebuilts.tgz.part.a* | tar xzvf -
+chmod +x rkbin/tools/mkimage
 ```
 
 4. 下载Rockchip的Linux kernel源码
@@ -74,7 +79,9 @@ cd Ads6401_Linux_Driver/tools/buildtools
 
 6. 编译和生成boot.img文件
 ```
+cd Ads6401_Linux_Driver/tools/buildtools
 ./build.sh kernel
+# 编译输出的boot.img在kernel目录下
 ```
 
 7. 烧录boot.img镜像到开发板上
