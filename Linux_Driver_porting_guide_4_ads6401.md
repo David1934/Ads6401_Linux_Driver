@@ -16,8 +16,8 @@
 kernel/arch/arm64/boot/dts/rockchip/rk3568-evb1-ddr4-v10-linux.dts
 kernel/arch/arm64/configs/rockchip_linux_defconfig
 kernel/drivers/media/i2c/ads6401.c
-kernel/drivers/media/i2c/ads6401_flood.c
-kernel/drivers/media/i2c/ads6401_spot.c
+kernel/drivers/media/i2c/ads6401_cfg.c
+kernel/drivers/media/i2c/ads6401_cfg_small_flood.c
 kernel/drivers/media/i2c/Kconfig
 kernel/drivers/media/i2c/Makefile
 kernel/drivers/media/platform/rockchip/cif/capture.c
@@ -137,8 +137,9 @@ ADS6401支持SPOT和FLOOD两大模组类型（更多细分类型），在ads6401
 #### 1. 模块类型区分
 ADS6401驱动通过硬件标识和内核配置区分模组类型，定义于`adaps_types.h`：
 - **SPOT散点模组**：`ADS6401_MODULE_SPOT = 0x6401A`（内置EEPROM P24C512X-C4H-MIR，VcselDriver OPN7020）
-- **FLOOD小面阵模组**：`ADS6401_MODULE_FLOOD = 0x6401B`（内置EEPROM P24C256F-D4H-MIR，VcselDriver PhotonIC 5015等）
+- **FLOOD小面阵模组**：`ADS6401_MODULE_SMALL_FLOOD = 0x6401B`（内置EEPROM P24C256F-D4H-MIR，VcselDriver PhotonIC 5015等）
 - **大FoV面阵模组**：`ADS6401_MODULE_BIG_FOV_FLOOD = 0x6401C`
+- **大FoV V2面阵模组**：`ADS6401_MODULE_BIG_FOV_FLOOD_V2 = 0x6401D`
 
 在ads6401.c中通过宏定义来来选择模组类型。
 
@@ -155,7 +156,7 @@ ADS6401驱动通过硬件标识和内核配置区分模组类型，定义于`ada
 
 
 #### 3. EEPROM数据结构
-`adaps_dtof_uapi.h`定义了散点和小面阵模组的EEPROM的数据结构
+`adaps_dtof_uapi.h`定义了多种模组的EEPROM的数据结构
    ```bash
 #pragma pack(4)
 typedef struct SwiftSpotModuleEepromData
@@ -242,6 +243,40 @@ typedef struct SwiftFloodModuleEepromData
     unsigned int    Crc32Offset[FLOOD_MODULE_OFFSET_NUM];
     unsigned char   Pg187Reserved[FLOOD_MODULE_EEPROM_PAGE_SIZE-32]; //64-32=32
 }swift_flood_module_eeprom_data_t;
+#pragma pack()
+
+#pragma pack(1)
+typedef struct SwiftEepromV2Data
+{
+    //HEAD
+    uint32_t        magic_id;                               // 数据结构头魔术字，固定为十六进制值0xEEAD6401，用于识别是否ads6401模组的eeprom数据
+    uint32_t        data_structure_version;                 // eeprom数据结构的版本，格式为最后修改的日期（十六进制值），比如0x20251208
+    uint8_t         calibrationInfo[32];                    // 标定工具软件的版本号信息
+    uint8_t         LastCalibratedTime[32];                 // 最后标定时间，比如：2025/11/27 14:59:04
+    uint8_t         serialNumber[BIG_FOV_MODULE_SN_LENGTH]; // 模组序列号
+    uint32_t        data_length;                            // HEAD后的所有DATA字段（BASIC_DATA + 压缩前BIG_DATA）的长度
+    uint32_t        data_crc32;                             // HEAD后的所有DATA字段（BASIC_DATA + 压缩前BIG_DATA）的CRC32值
+    uint32_t        compressed_data_length;                 // HEAD后的所有DATA字段（BASIC_DATA + 压缩后BIG_DATA）的长度
+    uint32_t        compressed_data_crc32;                  // HEAD后的所有DATA字段（BASIC_DATA + 压缩后BIG_DATA）的CRC32值
+
+    //BASIC_DATA
+    uint8_t         real_spot_zone_count;                   // X, 本模组实际有多少个spot zone (每个zone,最多有240个散点坐标)，必须是4的整数倍(4X)
+    uint8_t         tdcDelay[2];                            // Tdc delay Max and Min值，需用来写ads6401寄存器
+    uint8_t         lensType;                               // 
+    float           indoorCalibTemperature;                 // 室内标定温度，需要传给算法库
+    float           indoorCalibRefDistance;                 // 室内标定参考距离，需要传给算法库
+    float           outdoorCalibTemperature;                // 室外标定温度，需要传给算法库
+    float           outdoorCalibRefDistance;                // 室外标定参考距离，需要传给算法库
+    float           intrinsic[9];                           // dToF镜头的内参（9个参数）
+    float           rgb_intrinsic[8];                       // RGB镜头的内参（8个参数）
+    float           common_extrinsic[7];                    // RGB及dToF镜头的联合外参（7个参数）
+    uint8_t         Reserved[20];                           // 保留空间，为了凑整到256 bytes
+
+    //BIG_DATA, 标定工具写入eeprom前需要压缩，Linux驱动读出后立即解压缩，压缩操作对应用层是不可见的
+    uint8_t          sramData[PER_CALIB_SRAM_ZONE_SIZE * BIG_FOV_MAX_SPOT_ZONE_COUNT];
+    WalkErrorParam_t walkerrorData[PER_ZONE_MAX_SPOT_COUNT * BIG_FOV_MAX_SPOT_ZONE_COUNT];
+    float            spotOffset[PER_ZONE_MAX_SPOT_COUNT * BIG_FOV_MAX_SPOT_ZONE_COUNT];
+}swift_eeprom_v2_data_t;
 #pragma pack()
    ```
 
@@ -489,18 +524,19 @@ static long misc_device_ioctl(struct file *file, unsigned int cmd, unsigned long
    ```
 
 #### 5. ads6401驱动实现的mmap的共享内存buffer (K = 1024)
-|            名称            |  最大尺寸  |                                  作用                                   |        备注        |
-| ------------------------- | --------- | ---------------------------------------------------------------------- | ------------------ |
-| eeprom_data               | 64K bytes | 缓存从模组读出来的eeprom                                                 | 小面阵模组只有32K   |
-| loaded_sensor_reg_setting | 2K bytes  | 从外部加载的swift寄存器配置数据                                           | 暂未Ready          |
-| loaded_vcsel_reg_setting  | 2K bytes  | 从外部加载的vcsel driver寄存器配置数据<br>opn7020和PhotonIC 5015格式有差异 | 暂未Ready          |
-| loaded_roi_sram           | 36K       | 从外部加载的ROI sram数据                                                 | 主要用于roi轮询功能 |
+|            名称            |  最大尺寸   |                                  作用                                   |        备注        |
+| ------------------------- | ---------- | ---------------------------------------------------------------------- | ------------------ |
+| eeprom_data               | 272K bytes | 缓存从模组读出来的eeprom                                                 | 小面阵模组只有32K   |
+| loaded_sensor_reg_setting | 2K bytes   | 从外部加载的swift寄存器配置数据                                           | 暂未Ready          |
+| loaded_vcsel_reg_setting  | 2K bytes   | 从外部加载的vcsel driver寄存器配置数据<br>opn7020和PhotonIC 5015格式有差异 | 暂未Ready          |
+| loaded_roi_sram           | 36K        | 从外部加载的ROI sram数据                                                 | 主要用于roi轮询功能 |
 
 #### 6. ads6401驱动包含的i2c设备驱动
-|        名称        |  i2c地址   |           注册方式           |                       作用                        |                  备注                   |
-| ------------------ | --------- | --------------------------- | ------------------------------------------------ | --------------------------------------- |
-| sensor i2c device  | 0x5E/0x4A | i2c_add_driver()            | swift设备驱动，也作为模组的主控                     | 在dts设备树里声明设备节点                 |
-| dvcc_regulator_i2c | 0x45      | devm_i2c_new_dummy_device() | 控制TPS62864芯片输出dvcc 1.1v电压                  | 作为主驱动的附属驱动（**在转接板上**）     |
-| vcsel_i2c          | 0x31      | devm_i2c_new_dummy_device() | 控制vcsel driver发光<opn7020>                     | 作为主驱动的附属驱动（**小面阵模组没有**） |
-| mcuctrl            | 0x60      | devm_i2c_new_dummy_device() | 控制内置mcu的行为及vcsel driver发光<PhotonIC 5015> | 作为主驱动的附属驱动（**小面阵模组独有**） |
-| eeprom_i2c         | 0x50      | devm_i2c_new_dummy_device() | 模组内置的eeprom读取（公司内部更新）                 | 作为主驱动的附属驱动                      |
+|         名称          |  i2c地址   |           注册方式           |                             作用                             |                  备注                   |
+| -------------------- | --------- | --------------------------- | ----------------------------------------------------------- | --------------------------------------- |
+| sensor i2c device    | 0x5E/0x4A | i2c_add_driver()            | swift设备驱动，也作为模组的主控                                | 在dts设备树里声明设备节点                 |
+| dvcc_regulator_i2c   | 0x45      | devm_i2c_new_dummy_device() | 控制TPS62864芯片输出dvcc 1.1v电压                             | 作为主驱动的附属驱动（**在转接板上**）     |
+| vcsel_i2c            | 0x31      | devm_i2c_new_dummy_device() | 控制vcsel driver发光<opn7020>                                | 作为主驱动的附属驱动（**小面阵模组没有**） |
+| mcuctrl              | 0x60      | devm_i2c_new_dummy_device() | 控制内置mcu的行为及vcsel driver发光<PhotonIC 5015>            | 作为主驱动的附属驱动（**小面阵模组独有**） |
+| eeprom_i2c           | 0x50      | devm_i2c_new_dummy_device() | 模组内置的eeprom读取                                          | 作为主驱动的附属驱动                      |
+| eeprom_i2c_4_2nd_64k | 0x51      | devm_i2c_new_dummy_device() | 模组内置的eeprom读取(仅适用于128KB的eeprom芯片,第2个64KB的读取) | 作为主驱动的附属驱动                      |

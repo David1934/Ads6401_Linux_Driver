@@ -12,7 +12,7 @@
 [Ads6401_Linux_Driver](https://github.com/David1934/Ads6401_Linux_Driver)
 除了小工具包，该git仓库还包括ads6401 驱动发布包.zip文件
 ```
-./ads6401_linux_driver_code_v3.2.14_20250830191844.zip
+./ads6401_linux_driver_code_v3.2.14_20250830191844.zip (该文件会不定期更新,以实际下载到的版本为准)
 ./Build_boot_image_for_rockchip_Linux.md
 ./LICENSE
 ./Linux_Driver_porting_guide_4_ads6401.md

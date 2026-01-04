@@ -17,8 +17,8 @@
 kernel/arch/arm64/boot/dts/rockchip/rk3568-evb1-ddr4-v10-linux.dts
 kernel/arch/arm64/configs/rockchip_linux_defconfig
 kernel/drivers/media/i2c/ads6401.c
-kernel/drivers/media/i2c/ads6401_flood.c
-kernel/drivers/media/i2c/ads6401_spot.c
+kernel/drivers/media/i2c/ads6401_cfg.c
+kernel/drivers/media/i2c/ads6401_cfg_small_flood.c
 kernel/drivers/media/i2c/Kconfig
 kernel/drivers/media/i2c/Makefile
 kernel/drivers/media/platform/rockchip/cif/capture.c
