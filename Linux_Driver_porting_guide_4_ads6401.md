@@ -1,5 +1,9 @@
 # Linux_Driver_porting_guide_for_ads6401
 
+本文件只覆盖 ADS6401，对应发布包 `ads6401_linux_driver_code_v4.1.0_LM20261009A`（版本号以仓库里实际的 zip 为准）。模组类型是 Spot、Small Flood、Big FoV、Big FoV V2。
+
+带内置 MCU 的大 FoV Smart 模组是 ADS6401S，驱动是另一份发布包，移植步骤见 [Linux_Driver_porting_guide_4_ads6401s.md](Linux_Driver_porting_guide_4_ads6401s.md)。两套驱动不要叠在同一份内核配置里同时打开。
+
 ## A. ads6401驱动porting guide
 
 
@@ -8,18 +12,20 @@
 - **内核版本**：Linux 5.10.110
 - **SDK包**：基于RK3568的Linux 5.10 SDK
 
-
 #### 2. 修改和新增的文件对比
-![Added_and_modified_file_list](vx_images/453721887238496.png)
+![Added_and_modified_file_list](vx_images/557763628949680.png)
 其中`<rockchip_original>`目录Rk3568 Linux 5.10 SDK上原始的源文件，而`<adaps_modified>`是我们有修改和新增的文件
    ```
 kernel/arch/arm64/boot/dts/rockchip/rk3568-evb1-ddr4-v10-linux.dts
 kernel/arch/arm64/configs/rockchip_linux_defconfig
-kernel/drivers/media/i2c/ads6401.c
-kernel/drivers/media/i2c/ads6401_cfg.c
-kernel/drivers/media/i2c/ads6401_cfg_small_flood.c
 kernel/drivers/media/i2c/Kconfig
 kernel/drivers/media/i2c/Makefile
+kernel/drivers/media/i2c/ads6401_drv/Kconfig
+kernel/drivers/media/i2c/ads6401_drv/Makefile
+kernel/drivers/media/i2c/ads6401_drv/ads6401.c
+kernel/drivers/media/i2c/ads6401_drv/ads6401_build_options.h
+kernel/drivers/media/i2c/ads6401_drv/ads6401_cfg.c
+kernel/drivers/media/i2c/ads6401_drv/ads6401_cfg_small_flood.c
 kernel/drivers/media/platform/rockchip/cif/capture.c
 kernel/drivers/media/platform/rockchip/cif/dev.c
 kernel/drivers/media/platform/rockchip/cif/dev.h
@@ -28,31 +34,37 @@ kernel/include/uapi/linux/adaps_types.h
 kernel/include/uapi/linux/rk-camera-module.h
    ```
 
+从这一版开始，驱动源码放在 `drivers/media/i2c/ads6401_drv/` 目录下，不再散落在 `drivers/media/i2c/` 根目录。`ads6401_cfg.c`、`ads6401_cfg_small_flood.c` 由 `ads6401.c` 按模组类型包含，不要单独加进 Makefile。
+
 
 #### 3. 移植步骤
 ##### 3.1 代码集成
 1. 将`<adaps_modified>`目录下的文件复制到SDK对应路径：
    - 头文件：`adaps_types.h`、`adaps_dtof_uapi.h`、`rk-camera-module.h` → 复制到`include/uapi/linux/`
-   - 驱动文件：`ads6401*.c` → 复制到`drivers/media/i2c/`
+   - 驱动目录：`ads6401_drv/` 整个目录 → 复制到`drivers/media/i2c/`
 
-2. 修改I2C驱动Makefile（`drivers/media/i2c/Makefile`），添加ADS6401驱动编译项：
+   发布包里的 `drivers/media/i2c/Kconfig` 和 `Makefile` 是我们整棵内核树上的文件，里面还挂了其它传感器目录。客户这边不要整文件覆盖自己的 Kconfig/Makefile，只把下面两处合进去。设备树、defconfig、CIF 三个文件建议和 `<rockchip_original>` 做一次 diff，再按自己的板子改。
+
+2. 修改I2C驱动Makefile（`drivers/media/i2c/Makefile`），让它进入 ads6401 子目录：
    ```makefile
    # 在合适位置添加
-   obj-$(CONFIG_VIDEO_ADS6401) += ads6401.o
+   obj-$(CONFIG_VIDEO_ADS6401) += ads6401_drv/
    ```
+   子目录里的 `ads6401_drv/Makefile` 已经写了 `obj-$(CONFIG_VIDEO_ADS6401) += ads6401.o`，随目录一起拷贝即可，不用再改。
 
-3. 修改I2C驱动Kconfig（`drivers/media/i2c/Kconfig`），添加ADS6401驱动编译项：
+3. 修改I2C驱动Kconfig（`drivers/media/i2c/Kconfig`），把子目录的 Kconfig 引进来：
    ```Kconfig
-   # 在合适位置添加
+   # 在 menu "I2C Encoders, decoders, sensors and other helper chips" 里合适的位置添加
+   source "drivers/media/i2c/ads6401_drv/Kconfig"
+   ```
+   `ads6401_drv/Kconfig` 的内容如下。这一版改成了 `bool`，驱动编进内核，不再提供模块选项。
+   ```Kconfig
    config VIDEO_ADS6401
-	tristate "Adaps ADS6401 sensor support"
+	bool "Enable Adaps ADS6401 sensor support"
 	depends on I2C && VIDEO_V4L2
 	select V4L2_FWNODE
 	help
-	  This is a Video4Linux2 sensor driver for the Adaps Ads6401 camera.
-
-	  To compile this driver as a module, choose M here: the
-	  module will be called Ads6401.
+	  This is a Video4Linux2 sensor driver for the Adaps Ads6401 dToF sensor.
 
    config SWIFT_MINI_DEMO_BOX
 	bool "rk3568 Linux for ads6401 mini demo box"
@@ -60,25 +72,24 @@ kernel/include/uapi/linux/rk-camera-module.h
 	default n
 	help
 	  Enable this option to support rk3568 Linux for ads6401 mini demo box.
-
    ```
 
-4. 修改Linux内核的功能配置选项文件（`arch\arm64\configs\rockchip_linux_defconfig`），添加一些编译选项：（我们内部的gerrit仓库上，我们有多个类似的文件，以便支持hawk,swift以及不同的转接板）
+4. 修改Linux内核的功能配置选项文件（`arch/arm64/configs/rockchip_linux_defconfig`）。下面是本次 ads6401 发布包里 defconfig 末尾实际带上的选项：
    ```
    # 在文件末尾添加
-   # adaps modification for swift mini-demo-box on adaps rk3568 SoC mini board
-   # CONFIG_DP83720_PHY=y
+   # adaps modification for swift demo on rk3568 development board
    CONFIG_USB_CONFIGFS_RNDIS=y
    CONFIG_USB_U_ETHER=y
    CONFIG_USB_F_RNDIS=y
    CONFIG_VIDEO_ADS6401=y
-   CONFIG_SWIFT_MINI_DEMO_BOX=y
    ```
+   `CONFIG_SWIFT_MINI_DEMO_BOX=y` 只在 Adaps 小型化样机上需要。打开之后，`ads6401_build_options.h` 里才会定义 `MINI_DEMO_BOX`。普通开发板不要开。
 
-ADS6401支持SPOT和FLOOD两大模组类型（更多细分类型），在ads6401.c中通过宏定义来区分：
+ADS6401 的模组类型在 `ads6401_drv/ads6401_build_options.h` 开头选择，本次发布包默认是 Big FoV V2：
    ```
-#define SWIFT_MODULE_TYPE               ADS6401_MODULE_SPOT  // ADS6401_MODULE_FLOOD
+#define SWIFT_MODULE_TYPE               ADS6401_MODULE_BIG_FOV_FLOOD_V2  // (ADS6401_MODULE_SPOT / ADS6401_MODULE_SMALL_FLOOD / ADS6401_MODULE_BIG_FOV_FLOOD / ADS6401_MODULE_BIG_FOV_FLOOD_V2)
    ```
+取值定义在 `include/uapi/linux/adaps_types.h`。`ADS6401_MODULE_BIG_FOV_FLOOD_SMART`（0x6401E）是 ADS6401S，不要在本驱动里选，选了也没有对应的配置分支。
 
 
 ##### 3.3 编译与部署
@@ -94,19 +105,21 @@ ADS6401支持SPOT和FLOOD两大模组类型（更多细分类型），在ads6401
 
 
 #### 4. 验证
-- 检查驱动加载：`lsmod | grep ads6401` 或 `dmesg | grep DRV_ADS6401`
+这一版 Kconfig 是 `bool`，驱动编进内核，`lsmod` 里看不到 `ads6401`。用 dmesg 确认 probe。
+- 检查驱动加载：`dmesg | grep "<DRV_ADS6401>"`
 - 确认设备节点：`ls /dev/ads6401_misc`（ADS6401驱动中misc驱动的设备节点）
-- 确认我们独有的设备属性是否存在：
+- 确认我们独有的设备属性是否存在。下面路径是我们 RK3568 样机 i2c4、地址 0x5e 上的结果，总线号以自己的 dts 为准：
    ```bash
    root@rk356x:~# find /sys -name register
    /sys/devices/platform/fe5d0000.i2c/i2c-4/4-005e/register
 
    root@rk356x:~# cat /sys/devices/platform/fe5d0000.i2c/i2c-4/4-005e/info
    Adaps ads6401 dToF sensor driver
-   Version:                       3.2.11_LM20250822A
-   Build Time:                    Fri Aug 22 12:01:10 CST 2025
+   Version:                       4.1.0_LM20261009A
+   Matched Compatible string:     adaps,ads6401
+   Last Build Time:               2026-10-09 12:24:51
    I2C Bus Num:                   4
-   I2C bus frequency:             1000000Hz
+   I2C bus configured frequency:  1000000 Hz
    I2C address for ads6401:       0x5e
    Current TTY:                   pts0
    tdc_delay_major:               0xa
@@ -116,8 +129,7 @@ ADS6401支持SPOT和FLOOD两大模组类型（更多细分类型），在ads6401
    Build switch options:
    ---------------------------------------------------------
    MINI_DEMO_BOX:                                     No
-   ADS6401_MODULE_TYPE:                               Spot
-   ENABLE_BIG_FOV_MODULE:                             No
+   ADS6401_MODULE_TYPE:                               Big_FoV_Flood_V2
    SENSOR_XCLK_FROM_SOC:                              Yes
    IGNORE_PROBE_FAILURE:                              Yes
    ...
@@ -125,9 +137,10 @@ ADS6401支持SPOT和FLOOD两大模组类型（更多细分类型），在ads6401
    MIPI_DATA_LANE_COUNT:                              2
    MIPI_SPEED:                                        1000 Mbps
    SOC_MIPI_RX_CLOCK_FREQ:                            500 MHz
-   EEPROM_CHIP_CAPACITY:                              65536 bytes
-   ADAPS_DBG_ONCE:                                    0x400000
+   EEPROM_CHIP_CAPACITY:                              131072 bytes
+   ADAPS_DBG_ONCE:                                    0x2000000
    ```
+   `Last Build Time` 是编译内核的时间，每次编译都会变。`ADS6401_MODULE_TYPE` 跟着 `ads6401_build_options.h` 里的 `SWIFT_MODULE_TYPE` 走，上面这份是默认 Big FoV V2（EEPROM 128KB）的结果。`status` 属性里还有一行 `Ads6401 module type:`，打印的是 `adaps_types.h` 里的十六进制值，例如 `6401D`。
 
 
 
@@ -135,13 +148,35 @@ ADS6401支持SPOT和FLOOD两大模组类型（更多细分类型），在ads6401
 
 
 #### 1. 模块类型区分
-ADS6401驱动通过硬件标识和内核配置区分模组类型，定义于`adaps_types.h`：
+模组类型定义在 `adaps_types.h`。ADS6401 驱动在 `ads6401_build_options.h` 里用 `SWIFT_MODULE_TYPE` 选定一种，`get_module_type()` 直接把这个宏返回给上层。
 - **SPOT散点模组**：`ADS6401_MODULE_SPOT = 0x6401A`（内置EEPROM P24C512X-C4H-MIR，VcselDriver OPN7020）
 - **FLOOD小面阵模组**：`ADS6401_MODULE_SMALL_FLOOD = 0x6401B`（内置EEPROM P24C256F-D4H-MIR，VcselDriver PhotonIC 5015等）
 - **大FoV面阵模组**：`ADS6401_MODULE_BIG_FOV_FLOOD = 0x6401C`
-- **大FoV V2面阵模组**：`ADS6401_MODULE_BIG_FOV_FLOOD_V2 = 0x6401D`
+- **大FoV V2面阵模组**：`ADS6401_MODULE_BIG_FOV_FLOOD_V2 = 0x6401D`（本次发布包的默认值）
+- **大FoV Smart模组**：`ADS6401_MODULE_BIG_FOV_FLOOD_SMART = 0x6401E`（ADS6401S，内置 MCU。不要配进 ads6401 驱动，用 ads6401s 发布包）
 
-在ads6401.c中通过宏定义来来选择模组类型。
+应用层通过 misc 设备的 `ADAPS_GET_DTOF_MODULE_STATIC_DATA` 拿到当前模组类型。这一版在 `adaps_dtof_uapi.h` 里给静态数据和 EEPROM 更新参数都加了 `module_type` 字段，取值就是上面这些宏：
+```c
+struct adaps_dtof_module_static_data{
+    __u32 module_type;            // refer to ADS6401_MODULE_SPOT/ADS6401_MODULE_SMALL_FLOOD/... of adaps_types.h file
+    __u32 eeprom_capacity;       // unit is byte
+    __u16 otp_vbe25;
+    __u16 otp_vbd;        // unit is 10mv, or the related V X 100
+    __u16 otp_adc_vref;
+    __u8 chip_product_id[SWIFT_PRODUCT_ID_SIZE];
+    __u8 sensor_drv_version[FW_VERSION_LENGTH];
+    __u8 ready;
+    __u8 eeprom_crc_matched;
+};
+
+struct adaps_dtof_update_eeprom_data{
+    __u32 module_type;            // refer to ADS6401_MODULE_SPOT/ADS6401_MODULE_SMALL_FLOOD/... of adaps_types.h file
+    __u32 eeprom_capacity;       // unit is byte
+    __u32 offset;             //eeprom data start offset
+    __u32 length;                //eeprom data length
+};
+```
+上层应先读 `module_type`，再决定按哪一种 EEPROM 布局解析 mmap 出来的标定数据。`adaps_dtof_update_eeprom_data` 里也有同名字段，本发布包的驱动没有开放更新 EEPROM 的 ioctl，这个结构体先留在头文件里。
 
 
 #### 2. 核心数据结构与枚举
@@ -401,6 +436,7 @@ static const struct v4l2_subdev_ops sensor_subdev_ops =
    ```
 
 ##### 4.3 misc_dev设备的ioctl函数
+下面这段是早期版本的写法，用来看 ioctl 分到 sensor、vcsel 还是 mcu。当前发布包里已经没有 `ADS6401_MODULE_FLOOD` 这个宏，分支改成按 `ads6401_build_options.h` 里的 `SWIFT_MODULE_TYPE` 走（小面阵走 MCU，其它模组走 vcsel driver）。寄存器地址怎么填，以 `ads6401.c` 里的 `misc_device_ioctl()` 为准。
    ```
 static long misc_device_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
