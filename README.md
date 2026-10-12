@@ -1,131 +1,52 @@
-## Linux_Driver_Porting_Guide_for_Adaps_Photonics_ADS6401 dToF Sensor
+## Linux driver porting guide for Adaps Photonics ADS6401 / ADS6401S dToF sensors
 ([Chinese version](README_zh_CN.md))
 
-#### 1. Download the latest driver release package and compilation tool package from GitHub
+This repository has two driver release packages. They are for different modules. Do not mix them in one kernel config.
+
+| | ADS6401 | ADS6401S |
+| --- | --- | --- |
+| Module | Spot, Small Flood, Big FoV, Big FoV V2 | Big FoV Smart, with a built-in MCU |
+| Module type macro | `ADS6401_MODULE_SPOT` / `SMALL_FLOOD` / `BIG_FOV_FLOOD` / `BIG_FOV_FLOOD_V2` | `ADS6401_MODULE_BIG_FOV_FLOOD_SMART` (0x6401E) |
+| This release | `ads6401_linux_driver_code_v4.1.0_LM20261009A_20261009122451.zip` | `ads6401s_linux_driver_code_v1.2.0_LM20261009A_20261009122327.zip` |
+| Driver directory | `drivers/media/i2c/ads6401_drv/` | `drivers/media/i2c/ads6401s_drv/` |
+| Kernel config | `CONFIG_VIDEO_ADS6401` | `CONFIG_VIDEO_ADS6401S` |
+| Reference I2C | i2c4, sensor address 0x5e, compatible `adaps,ads6401` | i2c4, module MCU address 0x22, compatible `adaps,ads6401s-mbox` |
+| misc device node | `/dev/ads6401_misc` | `/dev/ads6401_misc` (same name as ads6401) |
+| Details | [Linux_Driver_porting_guide_4_ads6401.md](Linux_Driver_porting_guide_4_ads6401.md) | [Linux_Driver_porting_guide_4_ads6401s.md](Linux_Driver_porting_guide_4_ads6401s.md) |
+
+The timestamp in the zip file name changes. Use the file that is actually in the repository. Driver version is the `Version` line in sysfs `info`: `4.1.0_LM20261009A` for ads6401, `1.2.0_LM20261009A` for ads6401s.
+
+### Note
+1. The driver is tied to the hardware. The release package is a reference. Please read the source and change the build switches for your own board.
+2. Do not enable `CONFIG_VIDEO_ADS6401` and `CONFIG_VIDEO_ADS6401S` in the same kernel config.
+
+
+#### 1. Download the latest driver release package and the build tools from GitHub
 
 [Ads6401_Linux_Driver](https://github.com/David1934/Ads6401_Linux_Driver)
 
-#### 2. Hardware and Software Environment for Reference Design
-- **Target Platform**: Rockchip RK3568 SoC
-- **Kernel Version**: Linux 5.10.110
-- **SDK Package**: Linux 5.10 SDK based on RK3568. The `<rockchip_original>` directory contains the original source files from the RK3568 Linux 5.10 SDK, while `<adaps_modified>` contains the files we have modified and added.
+How to pack the Rockchip kernel Image into boot.img: [Build_boot_image_for_rockchip_Linux.md](Build_boot_image_for_rockchip_Linux.md).
 
 
-#### 3. List of Modified and Added Files
-![Modified and Added Files](vx_images/557763628949679.png)
-   ```
-kernel/arch/arm64/boot/dts/rockchip/rk3568-evb1-ddr4-v10-linux.dts
-kernel/arch/arm64/configs/rockchip_linux_defconfig
-kernel/drivers/media/i2c/ads6401.c
-kernel/drivers/media/i2c/ads6401_cfg.c
-kernel/drivers/media/i2c/ads6401_cfg_small_flood.c
-kernel/drivers/media/i2c/Kconfig
-kernel/drivers/media/i2c/Makefile
-kernel/drivers/media/platform/rockchip/cif/capture.c
-kernel/drivers/media/platform/rockchip/cif/dev.c
-kernel/drivers/media/platform/rockchip/cif/dev.h
-kernel/include/uapi/linux/adaps_dtof_uapi.h
-kernel/include/uapi/linux/adaps_types.h
-kernel/include/uapi/linux/rk-camera-module.h
-   ```
+#### 2. Hardware and software environment of the reference design
+- **Target platform**: Rockchip RK3568 SoC
+- **Kernel version**: Linux 5.10.110
+- **SDK**: Linux 5.10 SDK based on RK3568
 
 
-#### 4. Porting Steps
-##### 4.1 Code Integration
-1. Copy the files in the `<adaps_modified>` directory to the corresponding paths in the SDK:
-   - Header files: `adaps_types.h`, `adaps_dtof_uapi.h`, `rk-camera-module.h` → Copy to `include/uapi/linux/`
-   - Driver files: `ads6401*.c` → Copy to `drivers/media/i2c/`
+#### 3. What is inside a release package
+Each zip has two trees:
+- `<rockchip_original>`: original files from the RK3568 Linux 5.10 SDK
+- `<adaps_modified>`: files we modified or added
 
-2. Modify the I2C driver Makefile (`drivers/media/i2c/Makefile`) and add the ADS6401 driver compilation item:
-   ```makefile
-   # Add at an appropriate position
-   obj-$(CONFIG_VIDEO_ADS6401) += ads6401.o
-   ```
+From this release, the driver is no longer dropped into `drivers/media/i2c/` as loose `.c` files. Each sensor has its own directory. ads6401 also needs `ads6401_build_options.h` (module type is selected at the top of that file). ads6401s also needs `ads6401s_build_options.h` and `ads6401s_common.h`.
 
-3. Modify the I2C driver Kconfig (`drivers/media/i2c/Kconfig`) and add the ADS6401 driver compilation item:
-   ```Kconfig
-   # Add at an appropriate position
-   config VIDEO_ADS6401
-	tristate "Adaps ADS6401 sensor support"
-	depends on I2C && VIDEO_V4L2
-	select V4L2_FWNODE
-	help
-	  This is a Video4Linux2 sensor driver for the Adaps Ads6401 camera.
-
-	  To compile this driver as a module, choose M here: the
-	  module will be called Ads6401.
-
-   config SWIFT_MINI_DEMO_BOX
-	bool "rk3568 Linux for ads6401 mini demo box"
-	depends on VIDEO_ADS6401
-	default n
-	help
-	  Enable this option to support rk3568 Linux for ads6401 mini demo box.
-
-   ```
-
-4. Modify the Linux kernel feature configuration option file (`arch\arm64\configs\rockchip_linux_defconfig`) and add some compilation options: (In our internal Gerrit repository, we have multiple similar files to support Hawk, Swift, and different adapter boards)
-   ```
-   # Add at the end of the file
-   # adaps modification for swift mini-demo-box on adaps rk3568 SoC mini board
-   # CONFIG_DP83720_PHY=y
-   CONFIG_USB_CONFIGFS_RNDIS=y
-   CONFIG_USB_U_ETHER=y
-   CONFIG_USB_F_RNDIS=y
-   CONFIG_VIDEO_ADS6401=y
-   # The following line is only required for Adaps' miniaturized prototype
-   CONFIG_SWIFT_MINI_DEMO_BOX=y
-   ```
-
-ADS6401 supports two major module types: SPOT and FLOOD (with more sub-types), which are distinguished by macro definitions in ads6401.c:
-   ```
-#define SWIFT_MODULE_TYPE               ADS6401_MODULE_SPOT  // ADS6401_MODULE_FLOOD
-   ```
+`drivers/media/i2c/Kconfig` and `Makefile` in the package come from our full kernel tree and still source other sensors. Do not overwrite your SDK files with them. Merge only the two lines for the driver you are porting. The snippets are in the two porting guides above.
 
 
-##### 4.2 Compilation and Deployment
-1. Execute kernel compilation:
-   ```bash
-   make ARCH=arm64 rockchip_linux_defconfig
-   make ARCH=arm64 -j8
-   ```
+#### 4. What changed for the application, compared with the previous document
+`adaps_dtof_module_static_data` in `adaps_dtof_uapi.h` now has `module_type`. The misc ioctl `ADAPS_GET_DTOF_MODULE_STATIC_DATA` fills it with one of the `ADS6401_MODULE_*` values in `adaps_types.h`. Check `module_type` before parsing the EEPROM data from mmap.
 
-2. Deploy the generated kernel image and driver modules (if configured as modules) to the RK3568 development board, and restart the board to take effect.
-Rockchip's SDK has made some Android-like customized modifications to the kernel, supporting ADB. The kernel burning image file uses boot.img. The compilation script build.sh in the SDK provides a lunch menu to select different development board types, and also offers automated operations to convert the traditional kernel image file (Image) to boot.img. Customers should perform corresponding processing according to the actual platform used.
+The ads6401 package defaults to `ADS6401_MODULE_BIG_FOV_FLOOD_V2`. Change `SWIFT_MODULE_TYPE` in `ads6401_drv/ads6401_build_options.h` if you have another ads6401 module. ads6401s is fixed to `ADS6401_MODULE_BIG_FOV_FLOOD_SMART`. Any other value fails the build.
 
-
-##### 4.3. Verification
-- Check driver loading: `lsmod | grep ads6401` or `dmesg | grep DRV_ADS6401`
-- Verify the device node: `ls /dev/ads6401_misc` (the device node of the misc driver in the ADS6401 driver)
-- Verify the existence of our unique device attributes:
-   ```bash
-   root@rk356x:~# find /sys -name register
-   /sys/devices/platform/fe5d0000.i2c/i2c-4/4-005e/register
-
-   root@rk356x:~# cat /sys/devices/platform/fe5d0000.i2c/i2c-4/4-005e/info
-   Adaps ads6401 dToF sensor driver
-   Version:                       3.2.11_LM20250822A
-   Build Time:                    Fri Aug 22 12:01:10 CST 2025
-   I2C Bus Num:                   4
-   I2C bus frequency:             1000000Hz
-   I2C address for ads6401:       0x5e
-   Current TTY:                   pts0
-   tdc_delay_major:               0xa
-   tdc_delay_minor:               0x8
-
-   root@rk356x:~# cat /sys/devices/platform/fe5d0000.i2c/i2c-4/4-005e/config
-   Build switch options:
-   ---------------------------------------------------------
-   MINI_DEMO_BOX:                                     No
-   ADS6401_MODULE_TYPE:                               Spot
-   ENABLE_BIG_FOV_MODULE:                             No
-   SENSOR_XCLK_FROM_SOC:                              Yes
-   IGNORE_PROBE_FAILURE:                              Yes
-   ...
-   NON_CONTINUOUS_MIPI_CLK:                           Yes
-   MIPI_DATA_LANE_COUNT:                              2
-   MIPI_SPEED:                                        1000 Mbps
-   SOC_MIPI_RX_CLOCK_FREQ:                            500 MHz
-   EEPROM_CHIP_CAPACITY:                              65536 bytes
-   ADAPS_DBG_ONCE:                                    0x400000
-   ```
+sysfs `status` prints `Ads6401 module type:` in hex, for example `6401D` on the default ads6401 build and `6401E` on ads6401s. sysfs `config` prints the name, for example `Big_FoV_Flood_V2` or `Big_FoV_Flood_Smart`.
